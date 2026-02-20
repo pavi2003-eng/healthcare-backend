@@ -1,4 +1,7 @@
+const { getDatabaseConnection } = require('../../common/config/db');
 const mongoose = require('mongoose');
+
+const conn = getDatabaseConnection('healthcare');
 
 const messageSchema = new mongoose.Schema({
   sender: { type: String, required: true },
@@ -19,4 +22,4 @@ const chatSchema = new mongoose.Schema({
   lastReadByPatient: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('Chat', chatSchema);
+module.exports = conn.model('Chat', chatSchema);

@@ -1,23 +1,26 @@
+const { getDatabaseConnection } = require('../../common/config/db');
 const mongoose = require('mongoose');
+
+const conn = getDatabaseConnection('healthcare');
 
 const patientSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   name: { type: String, required: true },
   email: { type: String, required: true },
-  age: { type: Number },
+  age: Number,
   gender: { type: String, enum: ['Male', 'Female', 'Other'] },
-  bloodPressure: { type: Number },
-  glucoseLevel: { type: Number },
-  heartRate: { type: Number },
+  bloodPressure: Number,
+  glucoseLevel: Number,
+  heartRate: Number,
   createdAt: { type: Date, default: Date.now }
 });
+
 patientSchema.virtual('priority').get(function() {
   if (this.bloodPressure > 140 || this.glucoseLevel > 140) return 'High';
   if (this.bloodPressure > 120 || this.glucoseLevel > 100) return 'Moderate';
   return 'Low';
 });
 
-// Ensure virtuals are included in toJSON
 patientSchema.set('toJSON', { virtuals: true });
-patientSchema.set('toObject', { virtuals: true });
-module.exports = mongoose.model('Patient', patientSchema);
+
+module.exports = conn.model('Patient', patientSchema);

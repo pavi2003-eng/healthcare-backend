@@ -1,4 +1,7 @@
+const { getDatabaseConnection } = require('../../common/config/db');
 const mongoose = require('mongoose');
+
+const conn = getDatabaseConnection('healthcare');
 
 const doctorSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -13,4 +16,4 @@ const doctorSchema = new mongoose.Schema({
   profileImage: { type: String }
 });
 
-module.exports = mongoose.model('Doctor', doctorSchema);
+module.exports = conn.model('Doctor', doctorSchema);

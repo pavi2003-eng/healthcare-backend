@@ -1,4 +1,7 @@
+const { getDatabaseConnection } = require('../../common/config/db');
 const mongoose = require('mongoose');
+
+const conn = getDatabaseConnection('healthcare');
 
 const notificationSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -9,8 +12,8 @@ const notificationSchema = new mongoose.Schema({
     default: 'general'
   },
   read: { type: Boolean, default: false },
-  link: { type: String }, // optional link to relevant page
+  link: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('Notification', notificationSchema);
+module.exports = conn.model('Notification', notificationSchema);

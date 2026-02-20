@@ -1,4 +1,7 @@
+const { getDatabaseConnection } = require('../../common/config/db');
 const mongoose = require('mongoose');
+
+const conn = getDatabaseConnection('healthcare');
 
 const ratingSchema = new mongoose.Schema({
   doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor', required: true },
@@ -9,6 +12,4 @@ const ratingSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Ensure one rating per appointment
-
-module.exports = mongoose.model('Rating', ratingSchema);
+module.exports = conn.model('Rating', ratingSchema);
