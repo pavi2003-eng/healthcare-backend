@@ -4,23 +4,16 @@ const Patient = require('../models/Patient');
 const Appointment = require('../models/Appointment');
 const asyncHandler = require('../../common/utils/asyncHandler');
 
-// ==================== DOCTORS ====================
 
-// GET all doctors (with user account info)
 exports.getAllDoctors = asyncHandler(async (req, res) => {
   const doctors = await Doctor.find().populate('userId', 'email role');
   res.json(doctors);
 });
 
-// POST create a new doctor (also creates a user account)
 exports.createDoctor = asyncHandler(async (req, res) => {
   const { fullName, email, password, gender, contactNumber, specialist, designation } = req.body;
-
-  // Check if user already exists
   let user = await User.findOne({ email });
   if (user) return res.status(400).json({ message: 'User already exists' });
-
-  // Create user with role 'doctor'
   user = new User({
     name: fullName,
     email,
@@ -28,8 +21,6 @@ exports.createDoctor = asyncHandler(async (req, res) => {
     role: 'doctor'
   });
   await user.save();
-
-  // Create doctor profile
   const doctor = new Doctor({
     userId: user._id,
     fullName,
@@ -40,52 +31,38 @@ exports.createDoctor = asyncHandler(async (req, res) => {
     designation
   });
   await doctor.save();
-
-  // Link doctorId to user
   user.doctorId = doctor._id;
   await user.save();
 
   res.status(201).json({ message: 'Doctor created successfully', doctor });
 });
 
-// PUT update a doctor
 exports.updateDoctor = asyncHandler(async (req, res) => {
   const doctor = await Doctor.findByIdAndUpdate(req.params.id, req.body, { new: true });
   if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
   res.json({ message: 'Doctor updated', doctor });
 });
 
-// DELETE a doctor (also delete user)
 exports.deleteDoctor = asyncHandler(async (req, res) => {
   const doctor = await Doctor.findById(req.params.id);
   if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
-
-  // Delete associated user
   await User.findByIdAndDelete(doctor.userId);
-  // Delete doctor
   await doctor.deleteOne();
 
   res.json({ message: 'Doctor and user deleted' });
 });
 
-// ==================== PATIENTS ====================
-
-// GET all patients
 exports.getAllPatients = asyncHandler(async (req, res) => {
   const patients = await Patient.find().populate('userId', 'email role');
   res.json(patients);
 });
 
-// POST create a patient manually
 exports.createPatient = asyncHandler(async (req, res) => {
   const { name, email, password, age, gender, bloodPressure, glucoseLevel, heartRate } = req.body;
-
   let user = await User.findOne({ email });
   if (user) return res.status(400).json({ message: 'User already exists' });
-
   user = new User({ name, email, password, role: 'patient' });
   await user.save();
-
   const patient = new Patient({
     userId: user._id,
     name,

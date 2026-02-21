@@ -1,51 +1,78 @@
 const Chat = require('../models/Chat');
+const Message = require('../models/Message');
 const User = require('../models/User');
 const asyncHandler = require('../../common/utils/asyncHandler');
 
-// Helper to add unread count and profile picture
-const enrichChat = (chat, userRole, userName) => {
-  const lastRead = userRole === 'doctor' ? chat.lastReadByDoctor : chat.lastReadByPatient;
-  const unreadCount = chat.messages.filter(
-    m => new Date(m.timestamp) > (lastRead || new Date(0)) && m.sender !== userName
-  ).length;
-  const chatObj = chat.toObject();
-  chatObj.unreadCount = unreadCount;
-  
-  if (userRole === 'doctor') {
-    chatObj.patientProfilePicture = chat.patientId?.userId?.profilePicture || null;
-  } else {
-    chatObj.doctorProfilePicture = chat.doctorId?.userId?.profilePicture || null;
-  }
-  return chatObj;
+const getUnreadCount = async (chatId, userRole, lastRead) => {
+  return await Message.countDocuments({
+    chatId,
+    senderRole: { $ne: userRole },
+    createdAt: { $gt: lastRead || new Date(0) }
+  });
 };
 
-// GET all chats for a doctor (with patient picture)
 exports.getChatsForDoctor = asyncHandler(async (req, res) => {
   const chats = await Chat.find({ doctorId: req.params.doctorId })
     .populate({
       path: 'patientId',
-      populate: { path: 'userId', select: 'profilePicture name' }
+      populate: { path: 'userId', select: 'profilePicture' }
     })
-    .sort({ lastUpdated: -1 });
-  
-  const enriched = chats.map(chat => enrichChat(chat, 'doctor', req.user.name));
-  res.json(enriched);
+    .sort({ lastMessageAt: -1 });
+
+  const enrichedChats = await Promise.all(
+    chats.map(async (chat) => {
+      const lastMessage = await Message.findOne({ chatId: chat._id })
+        .sort({ createdAt: -1 });
+
+      const unreadCount = await getUnreadCount(
+        chat._id,
+        'doctor',
+        chat.lastReadByDoctor
+      );
+
+      const chatObj = chat.toObject();
+      chatObj.lastMessage = lastMessage;
+      chatObj.unreadCount = unreadCount;
+      chatObj.patientProfilePicture = chat.patientId?.userId?.profilePicture || null;
+      
+      return chatObj;
+    })
+  );
+
+  res.json(enrichedChats);
 });
 
-// GET all chats for a patient (with doctor picture)
 exports.getChatsForPatient = asyncHandler(async (req, res) => {
   const chats = await Chat.find({ patientId: req.params.patientId })
     .populate({
       path: 'doctorId',
       populate: { path: 'userId', select: 'profilePicture' }
     })
-    .sort({ lastUpdated: -1 });
-  
-  const enriched = chats.map(chat => enrichChat(chat, 'patient', req.user.name));
-  res.json(enriched);
+    .sort({ lastMessageAt: -1 });
+
+  const enrichedChats = await Promise.all(
+    chats.map(async (chat) => {
+      const lastMessage = await Message.findOne({ chatId: chat._id })
+        .sort({ createdAt: -1 });
+
+      const unreadCount = await getUnreadCount(
+        chat._id,
+        'patient',
+        chat.lastReadByPatient
+      );
+
+      const chatObj = chat.toObject();
+      chatObj.lastMessage = lastMessage;
+      chatObj.unreadCount = unreadCount;
+      chatObj.doctorProfilePicture = chat.doctorId?.userId?.profilePicture || null;
+      
+      return chatObj;
+    })
+  );
+
+  res.json(enrichedChats);
 });
 
-// GET a single chat by ID (with both profile pictures)
 exports.getChatById = asyncHandler(async (req, res) => {
   const chat = await Chat.findById(req.params.id)
     .populate({
@@ -54,74 +81,143 @@ exports.getChatById = asyncHandler(async (req, res) => {
     })
     .populate({
       path: 'doctorId',
-      populate: { path: 'userId', select: 'profilePicture' }
+      populate: { path: 'userId', select: 'profilePicture name' }
     });
+
   if (!chat) {
     return res.status(404).json({ message: 'Chat not found' });
   }
-  
+
+  const messages = await Message.find({ chatId: chat._id })
+    .sort({ createdAt: 1 });
+
   const chatObj = chat.toObject();
+  chatObj.messages = messages;
   chatObj.patientProfilePicture = chat.patientId?.userId?.profilePicture || null;
   chatObj.doctorProfilePicture = chat.doctorId?.userId?.profilePicture || null;
+
   res.json(chatObj);
 });
 
-// POST a new chat (when appointment accepted)
 exports.createChat = asyncHandler(async (req, res) => {
-  const chat = new Chat(req.body);
-  await chat.save();
+  const { doctorId, patientId, doctorName, patientName, subject, appointmentId } = req.body;
+
+  let chat = await Chat.findOne({ doctorId, patientId });
+
+  if (!chat) {
+    chat = new Chat({
+      doctorId,
+      patientId,
+      doctorName,
+      patientName,
+      subject,
+      appointmentId
+    });
+    await chat.save();
+  }
+
   res.status(201).json({ message: 'Chat created', chat });
 });
 
-// POST a message to an existing chat
 exports.addMessage = asyncHandler(async (req, res) => {
-  const chat = await Chat.findById(req.params.id);
+  const { sender, text } = req.body;
+  const chatId = req.params.id;
+
+  const chat = await Chat.findById(chatId);
   if (!chat) {
     return res.status(404).json({ message: 'Chat not found' });
   }
-  const { sender, text } = req.body;
-  chat.messages.push({ sender, text, timestamp: new Date() });
-  chat.lastUpdated = new Date();
-  await chat.save();
+
+  const senderRole = sender === chat.doctorName ? 'doctor' : 'patient';
   
-  // Repopulate to return full chat with profile pictures
-  const updatedChat = await Chat.findById(req.params.id)
+  let senderId;
+  if (senderRole === 'doctor') {
+    const doctorUser = await User.findOne({ doctorId: chat.doctorId });
+    senderId = doctorUser?._id;
+  } else {
+    const patientUser = await User.findOne({ patientId: chat.patientId });
+    senderId = patientUser?._id;
+  }
+
+  const message = new Message({
+    chatId,
+    senderId,
+    senderName: sender,
+    senderRole,
+    text
+  });
+  await message.save();
+
+  chat.lastMessageAt = new Date();
+  await chat.save();
+
+  const updatedChat = await Chat.findById(chatId)
     .populate({
       path: 'patientId',
       populate: { path: 'userId', select: 'profilePicture name' }
     })
     .populate({
       path: 'doctorId',
-      populate: { path: 'userId', select: 'profilePicture' }
+      populate: { path: 'userId', select: 'profilePicture name' }
     });
-  res.json({ message: 'Message added', chat: updatedChat });
+
+  const messages = await Message.find({ chatId }).sort({ createdAt: 1 });
+
+  const chatObj = updatedChat.toObject();
+  chatObj.messages = messages;
+  chatObj.patientProfilePicture = updatedChat.patientId?.userId?.profilePicture || null;
+  chatObj.doctorProfilePicture = updatedChat.doctorId?.userId?.profilePicture || null;
+
+  res.json({ message: 'Message added', chat: chatObj });
 });
 
-// PATCH mark chat as read for the current user
 exports.markAsRead = asyncHandler(async (req, res) => {
   const chat = await Chat.findById(req.params.id);
   if (!chat) {
     return res.status(404).json({ message: 'Chat not found' });
   }
 
-  const user = req.user;
-  if (user.role === 'doctor') {
-    chat.lastReadByDoctor = new Date();
-  } else if (user.role === 'patient') {
-    chat.lastReadByPatient = new Date();
-  } else {
-    return res.status(403).json({ message: 'Invalid role' });
+  const now = new Date();
+  
+  if (req.user.role === 'doctor') {
+    chat.lastReadByDoctor = now;
+    await Message.updateMany(
+      { 
+        chatId: chat._id,
+        senderRole: 'patient',
+        read: false
+      },
+      { 
+        read: true,
+        readAt: now
+      }
+    );
+  } else if (req.user.role === 'patient') {
+    chat.lastReadByPatient = now;
+    await Message.updateMany(
+      { 
+        chatId: chat._id,
+        senderRole: 'doctor',
+        read: false
+      },
+      { 
+        read: true,
+        readAt: now
+      }
+    );
   }
 
   await chat.save();
   res.json({ message: 'Chat marked as read' });
 });
 
-// DELETE a chat (admin only)
 exports.deleteChat = asyncHandler(async (req, res) => {
+  await Message.deleteMany({ chatId: req.params.id });
   const chat = await Chat.findByIdAndDelete(req.params.id);
+  
   if (!chat) {
     return res.status(404).json({ message: 'Chat not found' });
   }
-  res.json({ message: 'Chat deleted' });
+  
+  res.json({ message: 'Chat and all messages deleted' });
 });

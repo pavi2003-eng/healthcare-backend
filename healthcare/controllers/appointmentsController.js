@@ -126,11 +126,6 @@ exports.acceptAppointment = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: 'Appointment not found' });
   }
 
-  // Optional: check if logged-in doctor is the one assigned
-  // if (req.user.role !== 'doctor' || appointment.doctorId.toString() !== req.user.doctorId) {
-  //   return res.status(403).json({ message: 'Unauthorized' });
-  // }
-
   appointment.status = 'Accepted';
   await appointment.save();
 
@@ -165,33 +160,36 @@ exports.acceptAppointment = asyncHandler(async (req, res) => {
   const doctorId = appointment.doctorId;
   const patientId = appointment.patientId;
 
-  let chat = await Chat.findOne({ doctorId, patientId, appointmentId: appointment._id });
+  let chat = await Chat.findOne({ doctorId, patientId });
 
-  const messageText = `Your appointment on ${new Date(appointment.appointmentDate).toLocaleDateString()} at ${appointment.appointmentTime} has been accepted.`;
+  const messageText = `Your appointment on ${new Date(appointment.appointmentDate).toLocaleDateString()} at ${appointment.appointmentTime} has been accepted. You can communicate here.`;
 
-  if (chat) {
-    chat.messages.push({
-      sender: doctorName,
-      text: messageText,
-      timestamp: new Date()
-    });
-    chat.lastUpdated = new Date();
-  } else {
+  if (!chat) {
     chat = new Chat({
       doctorId,
-      doctorName,
       patientId,
+      doctorName,
       patientName,
-      appointmentId: appointment._id,
       subject: appointment.appointmentReason,
-      messages: [{
-        sender: doctorName,
-        text: messageText,
-        timestamp: new Date()
-      }],
-      lastUpdated: new Date()
+      appointmentId: appointment._id
     });
+    await chat.save();
   }
+
+  // Get sender ID (doctor's user ID)
+  const doctorUser = await User.findOne({ doctorId });
+  
+  // Add system message
+  const message = new Message({
+    chatId: chat._id,
+    senderId: doctorUser?._id || req.user.userId,
+    senderName: doctorName,
+    senderRole: 'doctor',
+    text: messageText
+  });
+  await message.save();
+
+  chat.lastMessageAt = new Date();
   await chat.save();
 
   res.json({ message: 'Appointment accepted, email and chat created', appointment });

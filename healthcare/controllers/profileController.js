@@ -67,23 +67,30 @@ exports.uploadProfilePicture = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: 'User not found' });
   }
 
+  const UPLOAD_ROOT = path.join(__dirname, '../../../uploads');
+
   // Delete old image if exists
   if (user.profilePicture) {
-    // user.profilePicture is stored as "/uploads/filename.jpg"
     const oldImagePath = path.join(UPLOAD_ROOT, path.basename(user.profilePicture));
     if (fs.existsSync(oldImagePath)) {
       fs.unlinkSync(oldImagePath);
     }
   }
 
-  // Save new image path (relative to static serve)
-  const imageUrl = `/uploads/${req.file.filename}`;
+  // Save with user ID in filename for better tracking
+  const fileExt = path.extname(req.file.originalname);
+  const newFilename = `${user._id}-${Date.now()}${fileExt}`;
+  const newPath = path.join(UPLOAD_ROOT, newFilename);
+  
+  // Rename the file
+  fs.renameSync(req.file.path, newPath);
+
+  const imageUrl = `/uploads/${newFilename}`;
   user.profilePicture = imageUrl;
   await user.save();
 
   res.json({ profilePicture: imageUrl });
 });
-
 // DELETE user account (and profile picture)
 exports.deleteAccount = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.userId);

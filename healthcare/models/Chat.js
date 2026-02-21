@@ -3,23 +3,32 @@ const mongoose = require('mongoose');
 
 const conn = getDatabaseConnection('healthcare');
 
-const messageSchema = new mongoose.Schema({
-  sender: { type: String, required: true },
-  text: { type: String, required: true },
-  timestamp: { type: Date, default: Date.now }
-});
-
 const chatSchema = new mongoose.Schema({
-  doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor', required: true },
-  patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
-  appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', required: true },
+  doctorId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Doctor', 
+    required: true,
+    index: true 
+  },
+  patientId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Patient', 
+    required: true,
+    index: true 
+  },
   doctorName: { type: String, required: true },
   patientName: { type: String, required: true },
   subject: { type: String, required: true },
-  messages: [messageSchema],
-  lastUpdated: { type: Date, default: Date.now },
+  appointmentId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Appointment' 
+  },
+  lastMessageAt: { type: Date, default: Date.now },
   lastReadByDoctor: { type: Date, default: Date.now },
-  lastReadByPatient: { type: Date, default: Date.now }
+  lastReadByPatient: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now }
 });
+
+chatSchema.index({ doctorId: 1, patientId: 1 }, { unique: true });
 
 module.exports = conn.model('Chat', chatSchema);
