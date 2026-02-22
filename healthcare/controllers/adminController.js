@@ -3,7 +3,9 @@ const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
 const Appointment = require('../models/Appointment');
 const asyncHandler = require('../../common/utils/asyncHandler');
-
+const Rating = require('../models/Rating');
+const Chat = require('../models/Chat');
+const Message = require('../models/Message');
 // GET all doctors
 exports.getAllDoctors = asyncHandler(async (req, res) => {
   const doctors = await Doctor.find().populate('userId', 'email role');
@@ -20,10 +22,10 @@ exports.createDoctor = asyncHandler(async (req, res) => {
   }
 
   // Check if user already exists with email or mobile
-  let user = await User.findOne({ 
-    $or: [{ email }, { mobileNumber }] 
+  let user = await User.findOne({
+    $or: [{ email }, { mobileNumber }]
   });
-  
+
   if (user) {
     if (user.email === email) {
       return res.status(400).json({ message: 'Email already exists' });
@@ -90,7 +92,7 @@ exports.updateDoctor = asyncHandler(async (req, res) => {
         mobileNumber,
         _id: { $ne: user._id }
       });
-      
+
       if (existingUser) {
         return res.status(400).json({ message: 'Mobile number already in use' });
       }
@@ -101,7 +103,7 @@ exports.updateDoctor = asyncHandler(async (req, res) => {
   const userUpdateData = {};
   if (fullName) userUpdateData.name = fullName;
   if (mobileNumber) userUpdateData.mobileNumber = mobileNumber;
-  
+
   await User.findByIdAndUpdate(user._id, userUpdateData, { new: true });
 
   // Update doctor fields
@@ -115,7 +117,7 @@ exports.updateDoctor = asyncHandler(async (req, res) => {
 exports.deleteDoctor = asyncHandler(async (req, res) => {
   const doctor = await Doctor.findById(req.params.id);
   if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
-  
+
   await User.findByIdAndDelete(doctor.userId);
   await doctor.deleteOne();
 
@@ -138,10 +140,10 @@ exports.createPatient = asyncHandler(async (req, res) => {
   }
 
   // Check if user already exists with email or mobile
-  let user = await User.findOne({ 
-    $or: [{ email }, { mobileNumber }] 
+  let user = await User.findOne({
+    $or: [{ email }, { mobileNumber }]
   });
-  
+
   if (user) {
     if (user.email === email) {
       return res.status(400).json({ message: 'Email already exists' });
@@ -152,12 +154,12 @@ exports.createPatient = asyncHandler(async (req, res) => {
   }
 
   // Create user with role 'patient'
-  user = new User({ 
-    name, 
-    email, 
+  user = new User({
+    name,
+    email,
     mobileNumber, // ADD THIS
-    password, 
-    role: 'patient' 
+    password,
+    role: 'patient'
   });
   await user.save();
 
@@ -209,7 +211,7 @@ exports.updatePatient = asyncHandler(async (req, res) => {
         mobileNumber,
         _id: { $ne: user._id }
       });
-      
+
       if (existingUser) {
         return res.status(400).json({ message: 'Mobile number already in use' });
       }
@@ -220,7 +222,7 @@ exports.updatePatient = asyncHandler(async (req, res) => {
   const userUpdateData = {};
   if (name) userUpdateData.name = name;
   if (mobileNumber) userUpdateData.mobileNumber = mobileNumber;
-  
+
   await User.findByIdAndUpdate(user._id, userUpdateData, { new: true });
 
   // Update patient fields
@@ -463,12 +465,13 @@ exports.publicCleanupAllData = asyncHandler(async (req, res) => {
   try {
     const nonAdminUsers = await User.find({ role: { $ne: 'admin' } });
     const nonAdminUserIds = nonAdminUsers.map(user => user._id);
-    await Rating.deleteMany({ 
+    await Rating.deleteMany({
       $or: [
         { userId: { $in: nonAdminUserIds } },
         { doctorId: { $in: nonAdminUserIds } }
       ]
     });
+    await Message.deleteMany({});
     await Chat.deleteMany({
       $or: [
         { patientId: { $in: nonAdminUserIds } },
@@ -503,18 +506,18 @@ exports.publicCleanupAllData = asyncHandler(async (req, res) => {
         nonAdminUsersDeleted: usersResult?.deletedCount || 0
       },
       adminUsersRemaining: adminUsers.length,
-      adminUsers: adminUsers.map(u => ({ 
+      adminUsers: adminUsers.map(u => ({
         id: u._id,
-        name: u.name, 
-        email: u.email 
+        name: u.name,
+        email: u.email
       }))
     });
 
   } catch (error) {
     console.error('❌ Cleanup error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 });
