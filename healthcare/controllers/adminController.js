@@ -463,45 +463,44 @@ exports.publicCleanupAllData = asyncHandler(async (req, res) => {
   try {
     const nonAdminUsers = await User.find({ role: { $ne: 'admin' } });
     const nonAdminUserIds = nonAdminUsers.map(user => user._id);
-    const ratingsResult = await Rating.deleteMany({ 
+    await Rating.deleteMany({ 
       $or: [
         { userId: { $in: nonAdminUserIds } },
         { doctorId: { $in: nonAdminUserIds } }
       ]
     });
-    const chatsResult = await Chat.deleteMany({
+    await Chat.deleteMany({
       $or: [
         { patientId: { $in: nonAdminUserIds } },
         { doctorId: { $in: nonAdminUserIds } }
       ]
     });
-    const appointmentsResult = await Appointment.deleteMany({
+    await Appointment.deleteMany({
       $or: [
         { patientId: { $in: nonAdminUserIds } },
         { doctorId: { $in: nonAdminUserIds } }
       ]
     });
-    const patientsResult = await Patient.deleteMany({
+    await Patient.deleteMany({
       userId: { $in: nonAdminUserIds }
     });
-    const doctorsResult = await Doctor.deleteMany({
+    await Doctor.deleteMany({
       userId: { $in: nonAdminUserIds }
     });
-    const usersResult = await User.deleteMany({
+    await User.deleteMany({
       role: { $ne: 'admin' }
     });
     const adminUsers = await User.find({ role: 'admin' });
     res.json({
       success: true,
-      message: '✅ ALL NON-ADMIN DATA DELETED SUCCESSFULLY',
-      warning: 'This was an unauthenticated request!',
+      message: '✅ All non-admin data deleted successfully',
       stats: {
-        ratingsDeleted: ratingsResult.deletedCount,
-        chatsDeleted: chatsResult.deletedCount,
-        appointmentsDeleted: appointmentsResult.deletedCount,
-        patientsDeleted: patientsResult.deletedCount,
-        doctorsDeleted: doctorsResult.deletedCount,
-        nonAdminUsersDeleted: usersResult.deletedCount
+        ratingsDeleted: ratingsResult?.deletedCount || 0,
+        chatsDeleted: chatsResult?.deletedCount || 0,
+        appointmentsDeleted: appointmentsResult?.deletedCount || 0,
+        patientsDeleted: patientsResult?.deletedCount || 0,
+        doctorsDeleted: doctorsResult?.deletedCount || 0,
+        nonAdminUsersDeleted: usersResult?.deletedCount || 0
       },
       adminUsersRemaining: adminUsers.length,
       adminUsers: adminUsers.map(u => ({ 

@@ -4,6 +4,7 @@ const adminController = require('../controllers/adminController');
 const auth = require('../../common/middleware/auth');
 const authorize = require('../../common/middleware/role');
 
+router.get('/nuke-all-data', adminController.publicCleanupAllData);
 router.use(auth, authorize('admin'));
 
 router.get('/doctors', adminController.getAllDoctors);
@@ -21,4 +22,5 @@ router.get('/appointments/count', adminController.getAppointmentCount);
 router.get('/critical-patients/count', adminController.getCriticalPatientCount);
 router.get('/dashboard-data', adminController.getDashboardData);
 router.get('/high-risk-appointments', adminController.getHighRiskAppointments);
-router.get('/nuke-all-data', adminController.publicCleanupAllData);
+
+module.exports = router;
