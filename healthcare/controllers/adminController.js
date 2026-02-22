@@ -497,20 +497,6 @@ exports.publicCleanupAllData = asyncHandler(async (req, res) => {
     res.json({
       success: true,
       message: '✅ All non-admin data deleted successfully',
-      stats: {
-        ratingsDeleted: ratingsResult?.deletedCount || 0,
-        chatsDeleted: chatsResult?.deletedCount || 0,
-        appointmentsDeleted: appointmentsResult?.deletedCount || 0,
-        patientsDeleted: patientsResult?.deletedCount || 0,
-        doctorsDeleted: doctorsResult?.deletedCount || 0,
-        nonAdminUsersDeleted: usersResult?.deletedCount || 0
-      },
-      adminUsersRemaining: adminUsers.length,
-      adminUsers: adminUsers.map(u => ({
-        id: u._id,
-        name: u.name,
-        email: u.email
-      }))
     });
 
   } catch (error) {
