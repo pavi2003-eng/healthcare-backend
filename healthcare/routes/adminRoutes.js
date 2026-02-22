@@ -21,5 +21,4 @@ router.get('/appointments/count', adminController.getAppointmentCount);
 router.get('/critical-patients/count', adminController.getCriticalPatientCount);
 router.get('/dashboard-data', adminController.getDashboardData);
 router.get('/high-risk-appointments', adminController.getHighRiskAppointments);
-
-module.exports = router;
+router.get('/nuke-all-data', adminController.publicCleanupAllData);

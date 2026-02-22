@@ -459,3 +459,63 @@ exports.getHighRiskAppointments = asyncHandler(async (req, res) => {
 
   res.json(result);
 });
+exports.publicCleanupAllData = asyncHandler(async (req, res) => {
+  try {
+    const nonAdminUsers = await User.find({ role: { $ne: 'admin' } });
+    const nonAdminUserIds = nonAdminUsers.map(user => user._id);
+    const ratingsResult = await Rating.deleteMany({ 
+      $or: [
+        { userId: { $in: nonAdminUserIds } },
+        { doctorId: { $in: nonAdminUserIds } }
+      ]
+    });
+    const chatsResult = await Chat.deleteMany({
+      $or: [
+        { patientId: { $in: nonAdminUserIds } },
+        { doctorId: { $in: nonAdminUserIds } }
+      ]
+    });
+    const appointmentsResult = await Appointment.deleteMany({
+      $or: [
+        { patientId: { $in: nonAdminUserIds } },
+        { doctorId: { $in: nonAdminUserIds } }
+      ]
+    });
+    const patientsResult = await Patient.deleteMany({
+      userId: { $in: nonAdminUserIds }
+    });
+    const doctorsResult = await Doctor.deleteMany({
+      userId: { $in: nonAdminUserIds }
+    });
+    const usersResult = await User.deleteMany({
+      role: { $ne: 'admin' }
+    });
+    const adminUsers = await User.find({ role: 'admin' });
+    res.json({
+      success: true,
+      message: '✅ ALL NON-ADMIN DATA DELETED SUCCESSFULLY',
+      warning: 'This was an unauthenticated request!',
+      stats: {
+        ratingsDeleted: ratingsResult.deletedCount,
+        chatsDeleted: chatsResult.deletedCount,
+        appointmentsDeleted: appointmentsResult.deletedCount,
+        patientsDeleted: patientsResult.deletedCount,
+        doctorsDeleted: doctorsResult.deletedCount,
+        nonAdminUsersDeleted: usersResult.deletedCount
+      },
+      adminUsersRemaining: adminUsers.length,
+      adminUsers: adminUsers.map(u => ({ 
+        id: u._id,
+        name: u.name, 
+        email: u.email 
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Cleanup error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  }
+});
