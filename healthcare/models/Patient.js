@@ -7,7 +7,7 @@ const patientSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   name: { type: String, required: true },
   email: { type: String, required: true },
-  age: Number,
+  mobileNumber: { type: String, required: true },
   gender: { type: String, enum: ['Male', 'Female', 'Other'] },
   bloodPressure: Number,
   glucoseLevel: Number,
@@ -15,7 +15,9 @@ const patientSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-patientSchema.virtual('priority').get(function() {
+patientSchema.index({ mobileNumber: 1 });
+
+patientSchema.virtual('priority').get(function () {
   if (this.bloodPressure > 140 || this.glucoseLevel > 140) return 'High';
   if (this.bloodPressure > 120 || this.glucoseLevel > 100) return 'Moderate';
   return 'Low';

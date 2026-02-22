@@ -4,68 +4,169 @@ const Patient = require('../models/Patient');
 const Appointment = require('../models/Appointment');
 const asyncHandler = require('../../common/utils/asyncHandler');
 
-
+// GET all doctors
 exports.getAllDoctors = asyncHandler(async (req, res) => {
   const doctors = await Doctor.find().populate('userId', 'email role');
   res.json(doctors);
 });
 
+// CREATE doctor - UPDATED to include mobileNumber
 exports.createDoctor = asyncHandler(async (req, res) => {
-  const { fullName, email, password, gender, contactNumber, specialist, designation } = req.body;
-  let user = await User.findOne({ email });
-  if (user) return res.status(400).json({ message: 'User already exists' });
+  const { fullName, email, mobileNumber, password, gender, contactNumber, specialist, designation } = req.body;
+
+  // Validate mobile number
+  if (!mobileNumber || !/^\d{10}$/.test(mobileNumber)) {
+    return res.status(400).json({ message: 'Please enter a valid 10-digit mobile number' });
+  }
+
+  // Check if user already exists with email or mobile
+  let user = await User.findOne({ 
+    $or: [{ email }, { mobileNumber }] 
+  });
+  
+  if (user) {
+    if (user.email === email) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+    if (user.mobileNumber === mobileNumber) {
+      return res.status(400).json({ message: 'Mobile number already exists' });
+    }
+  }
+
+  // Create user with role 'doctor'
   user = new User({
     name: fullName,
     email,
+    mobileNumber, // ADD THIS
     password,
     role: 'doctor'
   });
   await user.save();
+
+  // Create doctor profile
   const doctor = new Doctor({
     userId: user._id,
     fullName,
     gender,
     email,
-    contactNumber,
+    mobileNumber, // ADD THIS
+    contactNumber, // Keep for backward compatibility
     specialist: specialist || [],
     designation
   });
   await doctor.save();
+
   user.doctorId = doctor._id;
   await user.save();
 
   res.status(201).json({ message: 'Doctor created successfully', doctor });
 });
 
+// UPDATE doctor - UPDATED to handle mobileNumber
 exports.updateDoctor = asyncHandler(async (req, res) => {
-  const doctor = await Doctor.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
-  res.json({ message: 'Doctor updated', doctor });
+  const { fullName, email, mobileNumber, gender, contactNumber, specialist, designation } = req.body;
+
+  // Find the doctor
+  const doctor = await Doctor.findById(req.params.id);
+  if (!doctor) {
+    return res.status(404).json({ message: 'Doctor not found' });
+  }
+
+  // Find associated user
+  const user = await User.findById(doctor.userId);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  // Validate mobile number if provided
+  if (mobileNumber) {
+    if (!/^\d{10}$/.test(mobileNumber)) {
+      return res.status(400).json({ message: 'Please enter a valid 10-digit mobile number' });
+    }
+
+    // Check if mobile number is already taken by another user
+    if (mobileNumber !== user.mobileNumber) {
+      const existingUser = await User.findOne({
+        mobileNumber,
+        _id: { $ne: user._id }
+      });
+      
+      if (existingUser) {
+        return res.status(400).json({ message: 'Mobile number already in use' });
+      }
+    }
+  }
+
+  // Update user fields
+  const userUpdateData = {};
+  if (fullName) userUpdateData.name = fullName;
+  if (mobileNumber) userUpdateData.mobileNumber = mobileNumber;
+  
+  await User.findByIdAndUpdate(user._id, userUpdateData, { new: true });
+
+  // Update doctor fields
+  const doctorUpdateData = { ...req.body };
+  await Doctor.findByIdAndUpdate(req.params.id, doctorUpdateData, { new: true });
+
+  res.json({ message: 'Doctor updated', doctor: doctorUpdateData });
 });
 
+// DELETE doctor
 exports.deleteDoctor = asyncHandler(async (req, res) => {
   const doctor = await Doctor.findById(req.params.id);
   if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
+  
   await User.findByIdAndDelete(doctor.userId);
   await doctor.deleteOne();
 
   res.json({ message: 'Doctor and user deleted' });
 });
 
+// GET all patients
 exports.getAllPatients = asyncHandler(async (req, res) => {
   const patients = await Patient.find().populate('userId', 'email role');
   res.json(patients);
 });
 
+// CREATE patient - UPDATED to include mobileNumber
 exports.createPatient = asyncHandler(async (req, res) => {
-  const { name, email, password, age, gender, bloodPressure, glucoseLevel, heartRate } = req.body;
-  let user = await User.findOne({ email });
-  if (user) return res.status(400).json({ message: 'User already exists' });
-  user = new User({ name, email, password, role: 'patient' });
+  const { name, email, mobileNumber, password, age, gender, bloodPressure, glucoseLevel, heartRate } = req.body;
+
+  // Validate mobile number
+  if (!mobileNumber || !/^\d{10}$/.test(mobileNumber)) {
+    return res.status(400).json({ message: 'Please enter a valid 10-digit mobile number' });
+  }
+
+  // Check if user already exists with email or mobile
+  let user = await User.findOne({ 
+    $or: [{ email }, { mobileNumber }] 
+  });
+  
+  if (user) {
+    if (user.email === email) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+    if (user.mobileNumber === mobileNumber) {
+      return res.status(400).json({ message: 'Mobile number already exists' });
+    }
+  }
+
+  // Create user with role 'patient'
+  user = new User({ 
+    name, 
+    email, 
+    mobileNumber, // ADD THIS
+    password, 
+    role: 'patient' 
+  });
   await user.save();
+
+  // Create patient profile
   const patient = new Patient({
     userId: user._id,
     name,
+    email,
+    mobileNumber, // ADD THIS
     age,
     gender,
     bloodPressure,
@@ -80,11 +181,53 @@ exports.createPatient = asyncHandler(async (req, res) => {
   res.status(201).json({ message: 'Patient created', patient });
 });
 
-// PUT update a patient
+// UPDATE patient - UPDATED to handle mobileNumber
 exports.updatePatient = asyncHandler(async (req, res) => {
-  const patient = await Patient.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  if (!patient) return res.status(404).json({ message: 'Patient not found' });
-  res.json({ message: 'Patient updated', patient });
+  const { name, mobileNumber, age, gender, bloodPressure, glucoseLevel, heartRate } = req.body;
+
+  // Find the patient
+  const patient = await Patient.findById(req.params.id);
+  if (!patient) {
+    return res.status(404).json({ message: 'Patient not found' });
+  }
+
+  // Find associated user
+  const user = await User.findById(patient.userId);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  // Validate mobile number if provided
+  if (mobileNumber) {
+    if (!/^\d{10}$/.test(mobileNumber)) {
+      return res.status(400).json({ message: 'Please enter a valid 10-digit mobile number' });
+    }
+
+    // Check if mobile number is already taken by another user
+    if (mobileNumber !== user.mobileNumber) {
+      const existingUser = await User.findOne({
+        mobileNumber,
+        _id: { $ne: user._id }
+      });
+      
+      if (existingUser) {
+        return res.status(400).json({ message: 'Mobile number already in use' });
+      }
+    }
+  }
+
+  // Update user fields
+  const userUpdateData = {};
+  if (name) userUpdateData.name = name;
+  if (mobileNumber) userUpdateData.mobileNumber = mobileNumber;
+  
+  await User.findByIdAndUpdate(user._id, userUpdateData, { new: true });
+
+  // Update patient fields
+  const patientUpdateData = { ...req.body };
+  await Patient.findByIdAndUpdate(req.params.id, patientUpdateData, { new: true });
+
+  res.json({ message: 'Patient updated', patient: patientUpdateData });
 });
 
 // DELETE a patient
@@ -316,4 +459,3 @@ exports.getHighRiskAppointments = asyncHandler(async (req, res) => {
 
   res.json(result);
 });
-// NO EXTRA LINE HERE - file ends with the last export

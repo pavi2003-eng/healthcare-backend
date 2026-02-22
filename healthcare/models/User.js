@@ -7,6 +7,7 @@ const conn = getDatabaseConnection('healthcare');
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
+  mobileNumber: { type: String, required: true, unique: true }, 
   password: { type: String, required: true },
   role: { type: String, enum: ['patient', 'doctor', 'admin'], default: 'patient' },
   doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor' },
@@ -16,6 +17,8 @@ const userSchema = new mongoose.Schema({
   bio: { type: String, default: '' },
   username: { type: String, unique: true, sparse: true }
 });
+
+userSchema.index({ mobileNumber: 1 });
 
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();

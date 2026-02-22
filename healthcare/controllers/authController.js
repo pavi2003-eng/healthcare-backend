@@ -6,16 +6,30 @@ const asyncHandler = require('../../common/utils/asyncHandler');
 
 // POST register a new patient
 exports.register = asyncHandler(async (req, res) => {
-  const { name, email, password, age, gender, bloodPressure, glucoseLevel, heartRate } = req.body;
+  const { name, email, mobileNumber, password, age, gender, bloodPressure, glucoseLevel, heartRate } = req.body;
 
-  // Check if user already exists
-  let user = await User.findOne({ email });
+  // Check if user already exists with email or mobile
+  let user = await User.findOne({ 
+    $or: [{ email }, { mobileNumber }] 
+  });
+  
   if (user) {
-    return res.status(400).json({ message: 'User already exists' });
+    if (user.email === email) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+    if (user.mobileNumber === mobileNumber) {
+      return res.status(400).json({ message: 'Mobile number already exists' });
+    }
   }
 
   // Create user with role 'patient'
-  user = new User({ name, email, password, role: 'patient' });
+  user = new User({ 
+    name, 
+    email, 
+    mobileNumber, 
+    password, 
+    role: 'patient' 
+  });
   await user.save();
 
   // Create patient profile
@@ -23,6 +37,7 @@ exports.register = asyncHandler(async (req, res) => {
     userId: user._id,
     name: user.name,
     email: user.email,
+    mobileNumber: user.mobileNumber,
     age: age || undefined,
     gender: gender || undefined,
     bloodPressure: bloodPressure || undefined,
@@ -48,18 +63,29 @@ exports.register = asyncHandler(async (req, res) => {
       id: user._id,
       name: user.name,
       email: user.email,
+      mobileNumber: user.mobileNumber,
       role: user.role,
       patientId: patient._id
     }
   });
 });
 
-// POST login
+// POST login (supports both email and mobile number)
 exports.login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, mobileNumber, password } = req.body;
+
+  // Build query based on provided credentials
+  let query = {};
+  if (email) {
+    query.email = email;
+  } else if (mobileNumber) {
+    query.mobileNumber = mobileNumber;
+  } else {
+    return res.status(400).json({ message: 'Email or mobile number is required' });
+  }
 
   // Find user
-  const user = await User.findOne({ email });
+  const user = await User.findOne(query);
   if (!user) {
     return res.status(400).json({ message: 'Invalid credentials' });
   }
@@ -93,6 +119,7 @@ exports.login = asyncHandler(async (req, res) => {
       id: user._id,
       name: user.name,
       email: user.email,
+      mobileNumber: user.mobileNumber,
       role: user.role,
       patientId,
       doctorId

@@ -1,10 +1,6 @@
 // healthcare/routes/index.js
 const express = require('express');
 const router = express.Router();
-<<<<<<< HEAD
-
-=======
->>>>>>> 2f8451e (Remove analytics and department modules, update routes and controllers)
 const patientRoutes = require('./patientRoutes');
 const doctorRoutes = require('./doctorRoutes');
 const appointmentRoutes = require('./appointmentRoutes');
